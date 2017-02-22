@@ -1,0 +1,6 @@
+[submodule "vendor/cmdline"]
+	path = vendor/cmdline
+	url = git@github.com:tanakh/cmdline.git
+[submodule "vendor/flann"]
+	path = vendor/flann
+	url = git@github.com:mariusmuja/flann.git

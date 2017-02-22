@@ -47,14 +47,16 @@ struct Matrix {
     ~Matrix() {
         // delete[] data;
     }
-    
-    const ElementType *operator[](const size_t index) const {
-        return data + index * col;
-    }
 
     ElementType *operator[](const size_t index) {
         return data + index * col;
     }
+
+    const ElementType *operator[](const size_t index) const {
+        return data + index * col;
+    }
+
+    
 
     static Matrix<ElementType> load_from_file(const char* filename) {
         size_t filesize, dimension;
@@ -82,6 +84,7 @@ struct Vector
     Vector(size_t d): d(d) {
         data = new ElementType[d];
     }
+    Vector(size_t d, ElementType *data): d(d), data(data){}
 
     const ElementType &operator[](const size_t index) const {
         return data[index];
@@ -129,11 +132,11 @@ struct LSH_Table
     size_t function_num;
     float W;
     Table_T table;
-    LSH_Table(size_t feature_size, size_t function_num, float W, size_t rows): 
+    LSH_Table(size_t feature_size, size_t function_num, float W, size_t row): 
     feature_size(feature_size), function_num(function_num), W(W), 
     a(function_num, feature_size),b(function_num) {
         table = Table_T(
-            rows, //  
+            row, //  
             [function_num](hash_type hash)-> size_t { // Hasher
                 size_t result = 0;
                 for (size_t i = 0; i < function_num; i++) {
@@ -157,11 +160,6 @@ struct LSH_Table
             b[i] = rand() / RAND_MAX * W;
 
         }
-        a.data = new ElementType[function_num];
-        for (size_t i = 0; i < function_num; i++) {
-            a[i] = gaussrand();
-        }
-        b = rand() / RAND_MAX * W;
     }
 
     void getKey(const Vector<ElementType> &v, size_t *result) const {
@@ -169,7 +167,15 @@ struct LSH_Table
             result[i] = (v * a[i] + b[i]) / W;
         }
     }
-
+    void add(const Matrix<ElementType> &data) {
+        Vector<size_t> hash(function_num);        
+        for (size_t i = 0; i < data.row; i++) {
+            Vector<ElementType> v(feature_size, const_cast<ElementType*>(data[i]));
+            getKey(v, hash.data);
+            table.insert(std::make_pair(hash.data, i));
+        }
+        delete[] hash.data;
+    }
     ~LSH_Table() {
         delete[] a.data;
         delete[] b.data;
@@ -181,12 +187,22 @@ class LSH_Index
 {
 public:
     LSH_Index(const Matrix<ElementType> &data, const LshIndexParams &params): data(data), params(params) {
+        for (size_t i = 0; i < params.table_num; i++) {
+            //size_t feature_size, size_t function_num, float W, size_t rows
+            tables.push_back(LSH_Table<ElementType> (data.col, params.function_num, params.W, data.row));
+        }
+    }
+    void buildIndex() {
+        for (size_t i = 0; i < params.table_num; i ++) {
+            tables[i].add(data);
+        }
 
     }
-    ~LSH_Index();
+    ~LSH_Index(){};
 private:
     Matrix<ElementType> data;
     LshIndexParams params;
+    std::vector<LSH_Table<ElementType> > tables;
 };
 
 };

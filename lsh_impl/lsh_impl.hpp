@@ -6,8 +6,6 @@
 #include <unordered_set>
 #include <fstream>
 
-const int M_function_num = LSH_IMPL_FUNCTION_NUM;
-
 namespace lsh_impl {
 
 
@@ -94,13 +92,32 @@ struct Vector
     }
 };
 
+struct LshIndexParams {
+  unsigned int table_number; // L
+  unsigned int num_function; // M
+  float W; // W
+  unsigned int probe_level; // number proble to use
+  LshIndexParams(unsigned int table_number, unsigned int probe_level):table_number(table_number), probe_level(probe_level){}
+};
+
+template<typename ElementType>
+struct LSH_Table
+{
+    
+};
+
+template<typename ElementType>
 class LSH_Index
 {
 public:
-    LSH_Index();
-    ~LSH_Index();
+    LSH_Index(const Matrix<ElementType> &data, const LshIndexParams &params): data(data), params(params) {
 
+    }
+    ~LSH_Index();
+private:
+    Matrix<ElementType> data;
+    LshIndexParams params;
 };
 
-}
+};
 #endif

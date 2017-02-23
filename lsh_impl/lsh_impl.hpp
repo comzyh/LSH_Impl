@@ -130,7 +130,7 @@ struct LshIndexParams
     size_t table_num; // L
     size_t function_num; // M
     float W; // W
-    size_t probe_num; // number proble to use
+    size_t probe_num; // number probe to use
     LshIndexParams(size_t table_num, size_t function_num, float W, size_t probe_num):
         table_num(table_num), function_num(function_num), W(W), probe_num(probe_num) {}
 };
@@ -197,6 +197,13 @@ struct LSH_Table
             result[i] = (v * a[i] + b[i]) / W;
         }
     }
+    void getKey(const Vector<ElementType> &v, hash_element_type *result, float *x) const {
+        for (size_t i = 0; i < function_num; i++) {
+            x[i] = (v * a[i] + b[i]) / W;
+            result[i] = x[i];
+            x[i] -= result[i];
+        }
+    }
     void add(const Matrix<ElementType> &data) {
         for (size_t i = 0; i < data.row; i++) {
             Vector<hash_element_type> hash(function_num, const_cast<hash_type>(hashs[i]));
@@ -233,6 +240,62 @@ public:
             tables[i].add(data);
             printf("table %4lu initialized\n", i);
         }
+        probes.push_back(std::vector<int>());
+        buildMultiProbe();
+    }
+    // Multi-Probe LSH: Efficient Indexing for High-Dimensional Similarity Search
+    // 4.5
+    void buildMultiProbe() {
+        //Setp 1: get E(Z^2)
+        const double M = params.function_num; // ensure float during calculating
+        std::vector<float> EZSQ; // expectation of Z^2
+        for (int j = 1; j <= M; j++) {
+            EZSQ.push_back( (j * (j + 1)) / (4 * (M + 1) * (M + 2)) );
+        }
+        for (int j = M + 1; j <= 2 * M ; j++) {
+            EZSQ.push_back(1 - (2 * M + 1 - j) / (M + 1) + (2 * M + 1 - j) * (2 * M + 2 - j) / 4 / (M + 1) / (M + 2));
+        }
+        for (auto it = EZSQ.begin(); it != EZSQ.end(); it++) {
+            *it *= params.W * params.W;
+        }
+        //Step 2: Produce probe_num probes
+        typedef std::pair<float, std::vector<int> > he_type; // heap element type
+        std::priority_queue <he_type, std::vector<he_type>, std::greater<he_type> > min_heap;
+        min_heap.push(make_pair(EZSQ[0], std::vector<int>(1, 0)));
+        for (size_t i = 0; i < params.probe_num && min_heap.size(); i++) {
+            std::vector<int> probe;
+            bool valid;
+            do {
+
+                float score = min_heap.top().first;
+                probe = min_heap.top().second;
+                min_heap.pop();
+                valid = valid_probe(probe, M);
+                int last = *probe.rbegin();
+                if (last + 1 >= 2* M) {
+                    continue;
+                }
+                // Shift
+                std::vector<int> shift_probe = probe;
+                *shift_probe.rbegin() += 1;
+                min_heap.push(make_pair(score - EZSQ[last] + EZSQ[last + 1], shift_probe));
+
+                //Expand
+                std::vector<int> expand_probe = probe;
+                expand_probe.push_back(last + 1);
+                min_heap.push(make_pair(score + EZSQ[last + 1], expand_probe));
+
+
+            } while (!valid && min_heap.size());
+
+            if (valid) {
+                probes.push_back(probe);
+                for (size_t j = 0; j < probe.size(); j++) {
+                    printf("%d ", probe[j]);
+                }
+                printf("\n");
+            }
+        }
     }
 
     void knnSearch(Matrix<ElementType> &queries, Matrix<int> &indices, Matrix<float> &dists, int nn, const LshIndexParams &params) {
@@ -248,24 +311,49 @@ public:
         std::unordered_set<int> in;
         std::priority_queue < std::pair<float, int>/* dist, indexs*/ > result;
         Vector<hash_element_type > hash(params.function_num);
+        Vector<hash_element_type > phash(params.function_num); // perturbation hash
 
-        for (size_t i = 0; i < tables.size(); i++) {
-            tables[i].getKey(Vector<ElementType>(feature_size, query), hash.data);
-            auto range = tables[i].table.equal_range(hash.data);
-            for (auto it = range.first; it != range.second; it ++) {
-                if (in.count(it->second)) {
-                    continue;
+        Vector<float> x(params.function_num);
+
+        for (size_t t = 0; t < tables.size(); t++) {
+            tables[t].getKey(Vector<ElementType>(feature_size, query), hash.data, x.data);
+
+            //multi-probe perturbation
+            std::vector<std::pair<float, std::pair<int, int> > > pertubations; // <score, <position, delta> >
+            for (size_t i = 0; i < params.function_num; i++) {
+                pertubations.push_back(std::make_pair(x[i] * x[i], std::make_pair(i, -1)));
+                pertubations.push_back(std::make_pair((1 - x[i]) * (1 - x[i]), std::make_pair(i, 1)));
+            } 
+            sort(pertubations.begin(), pertubations.end());
+
+            //Probes (Table level)
+            for (auto probe_it = probes.begin(); probe_it != probes.end(); probe_it++) {
+                std::vector<int> &probe = *probe_it;
+                memcpy(phash.data, hash.data, hash.d * sizeof(hash_element_type));
+
+                // perturbations ()
+                for (auto pid = probe.begin(); pid != probe.end(); pid ++) {
+                    std::pair<int, int> pert = pertubations[*pid].second;
+                    phash[pert.first] += pert.second;
                 }
-                float dist = q.square_dist(data[it->second]);
-                if (result.size() == nn && dist > result.top().first) { // enough && worse than the worst
-                    continue;
-                }
-                in.insert(it->second);
-                result.push(std::make_pair(dist, it->second));
-                if (result.size() > nn) {
-                    result.pop();
+                auto range = tables[t].table.equal_range(phash.data);
+
+                for (auto it = range.first; it != range.second; it ++) {
+                    if (in.count(it->second)) {
+                        continue;
+                    }
+                    float dist = q.square_dist(data[it->second]);
+                    if (result.size() == nn && dist > result.top().first) { // enough && worse than the worst
+                        continue;
+                    }
+                    in.insert(it->second);
+                    result.push(std::make_pair(dist, it->second));
+                    if (result.size() > nn) {
+                        result.pop();
+                    }
                 }
             }
+            
         }
         if (result.size()) {
             for (size_t i = result.size() - 1; result.size(); i--) {
@@ -274,8 +362,9 @@ public:
                 result.pop();
             }
         }
-        
+
         delete[] hash.data;
+        delete[] x.data;
     }
 
 private:
@@ -283,6 +372,24 @@ private:
     Matrix<ElementType> data;
     LshIndexParams params;
     std::vector<LSH_Table<ElementType> > tables;
+    std::vector<std::vector<int> > probes;
+
+    bool valid_probe(const std::vector<int> &v, const int M) {
+        auto rit = v.rbegin();
+        if (*rit >= 2 * M) {
+            return false;
+        }
+        for (auto it = v.begin(); it != v.end() && *it < M; it ++) {
+            while (rit != v.rend() && *it + *rit > 2 * M - 1) {
+                rit ++;
+            }
+            if (*it + *rit == 2 * M - 1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 };
 
 };

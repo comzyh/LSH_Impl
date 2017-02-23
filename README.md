@@ -4,6 +4,6 @@
 
 # 编译
 
-> g++ test.cpp -std=c++11 -o test
+> g++ test.cpp -std=c++11 -fopenmp -O2 -o test
 
 > ./test --train sift/sift_base.fvecs --test sift/sift_query.fvecs 

@@ -267,11 +267,14 @@ public:
                 }
             }
         }
-        for (size_t i = 0; result.size(); i++) {
-            indices[i] = result.top().second;
-            dists[i] = result.top().first;
-            result.pop();
+        if (result.size()) {
+            for (size_t i = result.size() - 1; result.size(); i--) {
+                indices[i] = result.top().second;
+                dists[i] = result.top().first;
+                result.pop();
+            }
         }
+        
         delete[] hash.data;
     }
 

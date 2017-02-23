@@ -65,7 +65,7 @@ struct Matrix {
         filesize = file.tellg();
         file.seekg(0);
         file.read(reinterpret_cast<char *>(&dimension), 4);
-        lsh_impl::Matrix<float> mat(filesize / (4 + dimension * sizeof(ElementType)), dimension);
+        lsh_impl::Matrix<ElementType> mat(filesize / (4 + dimension * sizeof(ElementType)), dimension);
         file.seekg(0);
         for (size_t i = 0; i < mat.row; i ++)
         {
@@ -201,7 +201,7 @@ class LSH_Index
 {
 public:
     LSH_Index(const Matrix<ElementType> &data, const LshIndexParams &params): data(data), params(params) {
-        for (size_t i = 0; i < params.table_num; i++) {
+        for (size_t i = 0; i < params.table_num; i++) { 
             //size_t feature_size, size_t function_num, float W, size_t rows
             tables.push_back(LSH_Table<ElementType> (data.col, params.function_num, params.W, data.row));
         }

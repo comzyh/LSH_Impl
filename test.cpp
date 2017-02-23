@@ -12,6 +12,7 @@ int main(int argc, char **argv)
 	cmdline::parser parser;
 	parser.add<string>("base", 'b', "Base data path.", true);
 	parser.add<string>("query", 'q', "Query data path.", true);
+	parser.add<string>("ground", 'g', "Ground_Truth data path.", true);
 	parser.add<int>("table_num", 't', "Number of table", false, 10);
 	parser.add<int>("function_num", 'f', "Number of function", false, 10);
 	parser.add<float>("W", 'w', "W", false, 10.0f);
@@ -24,15 +25,19 @@ int main(int argc, char **argv)
 
 	lsh_impl::Matrix<float> base = lsh_impl::Matrix<float>::load_from_file(parser.get<string>("base").c_str());
 	lsh_impl::Matrix<float> query = lsh_impl::Matrix<float>::load_from_file(parser.get<string>("query").c_str());
-	printf("Base: %4lu row, %4lu col\n", base.row, base.col);
+	lsh_impl::Matrix<int> ground_truth = lsh_impl::Matrix<int>::load_from_file(parser.get<string>("ground").c_str());
+	printf("Base        : %8lu row, %4lu col\n", base.row, base.col);
+	printf("Query       : %8lu row, %4lu col\n", query.row, query.col);
+	printf("Ground truth: %8lu row, %4lu col\n", ground_truth.row, ground_truth.col);
+
 	//LshIndexParams
 	//size_t table_num, size_t function_num, float W, size_t probe_num
 	lsh_impl::LSH_Index<float> index(base, lsh_impl::LshIndexParams(
-		parser.get<int>("table_num"),
-		parser.get<int>("function_num"),
-		parser.get<float>("W"),
-		parser.get<int>("probe")
-	));
+	                                     parser.get<int>("table_num"),
+	                                     parser.get<int>("function_num"),
+	                                     parser.get<float>("W"),
+	                                     parser.get<int>("probe")
+	                                 ));
 	index.buildIndex();
 
 	return 0;

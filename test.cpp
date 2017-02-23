@@ -15,8 +15,8 @@ int main(int argc, char **argv)
     parser.add<string>("query", 'q', "Query data path.", true);
     parser.add<string>("ground", 'g', "Ground_Truth data path.", true);
     parser.add<int>("table_num", 't', "Number of table", false, 10);
-    parser.add<int>("function_num", 'f', "Number of function", false, 1);
-    parser.add<float>("W", 'w', "W", false, 10.0f);
+    parser.add<int>("function_num", 'f', "Number of function", false, 3);
+    parser.add<float>("W", 'w', "W", false, 100.0f);
     parser.add<int>("probe", 'p', "number of probe", false, 200);
     parser.add<int>("limit", 'l', "limit the query number", false, -1);
     parser.parse_check(argc, argv);
@@ -60,7 +60,7 @@ int main(int argc, char **argv)
     if (query_limit != -1) {
         query.row = query_limit;
     }
-    
+
     index.knnSearch(query, indices, dists, nn, index_params);
 
     double recall = 0;
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
             // printf("(%d, %.0f) ", indices[i][j], dists[i][j]);
             recall += truth.count(indices[i][j]);
         }
-        printf("\n"); 
+        // printf("\n"); 
     }
     recall /= query.row * nn;
     printf("Recall: %lf\n", recall);

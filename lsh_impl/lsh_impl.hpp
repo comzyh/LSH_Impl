@@ -102,7 +102,7 @@ struct Vector
     float operator *(const ElementType *v) const {
         float result = 0;
         for (size_t i = 0; i < d; i ++) {
-            result += (data[i] - v[i]) * (data[i] - v[i]);
+            result += data[i] * v[i];
         }
         return result;
     }
@@ -115,6 +115,13 @@ struct Vector
             result += (data[i] - v[i]) * (data[i] - v[i]);
         }
         return result;
+    }
+    void print() const {
+        printf("(%4d): ", d);
+        for (size_t i = 0; i < d; i++) {
+            std::cout << data[i] << ' ';
+        }
+        std::cout << std::endl;
     }
 };
 
@@ -195,7 +202,7 @@ struct LSH_Table
             Vector<hash_element_type> hash(function_num, const_cast<hash_type>(hashs[i]));
             Vector<ElementType> v(feature_size, const_cast<ElementType*>(data[i]));
             getKey(v, hash.data);
-            // table.insert(std::make_pair(hash.data, i));
+            table.insert(std::make_pair(hash.data, i));
         }
     }
 
@@ -232,7 +239,7 @@ public:
         #pragma omp parallel for
         for (size_t i = 0; i < queries.row; i++) {
             findNeighbors(queries[i], indices[i], dists[i], nn);
-            printf("Found\n");
+            printf("result %4d\n", i);
         }
     }
     void findNeighbors(ElementType *query, int* indices, float *dists, int nn) {
@@ -249,13 +256,18 @@ public:
                 if (in.count(it->second)) {
                     continue;
                 }
-                result.push(std::make_pair(q.square_dist(query), it->second));
+                float dist = q.square_dist(data[it->second]);
+                if (result.size() == nn && dist > result.top().first) { // enough && worse than the worst
+                    continue;
+                }
+                in.insert(it->second);
+                result.push(std::make_pair(dist, it->second));
                 if (result.size() > nn) {
                     result.pop();
                 }
             }
         }
-        for (size_t i = result.size() - 1; !result.empty(); i++) {
+        for (size_t i = 0; result.size(); i++) {
             indices[i] = result.top().second;
             dists[i] = result.top().first;
             result.pop();

@@ -28,6 +28,7 @@
 *.out
 *.app
 
+gist/
 sift/
 a.out
 test

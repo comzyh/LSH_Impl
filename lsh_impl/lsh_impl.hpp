@@ -306,7 +306,7 @@ public:
 
     void knnSearch(Matrix<ElementType> &queries, Matrix<int> &indices, Matrix<float> &dists, int nn, const LshIndexParams &params) {
         size_t done = 0;
-        #pragma omp parallel for
+        #pragma omp parallel for schedule(dynamic)
         for (size_t i = 0; i < queries.row; i++) {
             findNeighbors(queries[i], indices[i], dists[i], nn);
             #pragma omp atomic

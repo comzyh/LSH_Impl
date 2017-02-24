@@ -51,6 +51,7 @@ GIST 数据集同理
 > ./test -b gist/gist_base.fvecs -q gist/gist_query.fvecs -g gist/gist_groundtruth.ivecs -w 2 -p 2000 -t 64  -f 14
 
 Recall 约为 0.93
+
 Note: 使用该参数在64bit系统下大约需要消耗 9GB 内存
 
 

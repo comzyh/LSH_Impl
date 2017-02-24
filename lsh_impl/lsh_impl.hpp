@@ -164,12 +164,7 @@ struct LSH_Table
             return result;
         },
         [function_num](hash_type u, hash_type v)-> bool {
-            for (size_t i = 0; i < function_num; i++) {
-                if (u[i] != v[i]) {
-                    return false;
-                }
-            }
-            return true;
+            return memcmp(u, v, sizeof(hash_type) * function_num) == 0;
         }
                 );
         for (size_t i = 0; i < function_num; i ++) {

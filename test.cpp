@@ -14,7 +14,7 @@ int main(int argc, char **argv)
     parser.add<string>("base", 'b', "Base data path.", true);
     parser.add<string>("query", 'q', "Query data path.", true);
     parser.add<string>("ground", 'g', "Ground_Truth data path.", true);
-    parser.add<int>("table_num", 't', "Number of table", false, 10);
+    parser.add<int>("table_num", 't', "Number of table", false, 16);
     parser.add<int>("function_num", 'f', "Number of function", false, 3);
     parser.add<float>("W", 'w', "W", false, 100.0f);
     parser.add<int>("probe", 'p', "number of probe", false, 200);

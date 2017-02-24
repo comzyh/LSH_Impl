@@ -235,11 +235,16 @@ public:
 
     };
     void buildIndex() {
+        size_t initialized = 0;
         #pragma omp parallel for
         for (size_t i = 0; i < params.table_num; i ++) {
             tables[i].add(data);
-            printf("table %4lu initialized\n", i);
+            #pragma omp atomic
+            initialized++;
+            printf("\r %4d /%4d table initialized", initialized, params.table_num);
+            fflush(stdout);
         }
+        printf("\n");
         probes.push_back(std::vector<int>());
         buildMultiProbe();
     }
@@ -290,20 +295,26 @@ public:
 
             if (valid) {
                 probes.push_back(probe);
-                for (size_t j = 0; j < probe.size(); j++) {
-                    printf("%d ", probe[j]);
-                }
-                printf("\n");
+                // for (size_t j = 0; j < probe.size(); j++) {
+                //     printf("%d ", probe[j]);
+                // }
+                // printf("\n");
             }
         }
+        printf("Using %6lu probes\n", probes.size());
     }
 
     void knnSearch(Matrix<ElementType> &queries, Matrix<int> &indices, Matrix<float> &dists, int nn, const LshIndexParams &params) {
+        size_t done = 0;
         #pragma omp parallel for
         for (size_t i = 0; i < queries.row; i++) {
             findNeighbors(queries[i], indices[i], dists[i], nn);
-            printf("result %4d\n", i);
+            #pragma omp atomic
+            done++;
+            printf("\r %4d / %4d", done, queries.row);
+            fflush(stdout);
         }
+        printf("\n");
     }
     void findNeighbors(ElementType *query, int* indices, float *dists, int nn) {
         Vector<ElementType> q(feature_size, query); // query vector

@@ -138,35 +138,17 @@ struct LshIndexParams
 template<typename ElementType>
 struct LSH_Table
 {
-    typedef hash_element_type* hash_type; //
-    typedef std::unordered_multimap <hash_type, // Key
-            size_t, // Value
-            std::function<size_t(hash_type)>, // hasher
-            std::function<bool(hash_type, hash_type)> //key_equal
-            > Table_T;
+    typedef std::unordered_multimap <size_t, size_t> Table_T;
     Matrix<ElementType> a;
     Vector<ElementType> b;
-    Matrix<hash_element_type> hashs;
     size_t feature_size;
     size_t function_num;
     float W;
     Table_T table;
     LSH_Table(size_t feature_size, size_t function_num, float W, size_t row):
         feature_size(feature_size), function_num(function_num), W(W),
-        a(function_num, feature_size), b(function_num), hashs(row, function_num) {
-        table = Table_T(
-                    row, //
-        [function_num](hash_type hash)-> size_t { // Hasher
-            size_t result = 0;
-            for (size_t i = 0; i < function_num; i++) {
-                result = result * 47 + *reinterpret_cast<uint32_t*>(hash + i);
-            }
-            return result;
-        },
-        [function_num](hash_type u, hash_type v)-> bool {
-            return memcmp(u, v, sizeof(hash_type) * function_num) == 0;
-        }
-                );
+        a(function_num, feature_size), b(function_num) {
+        table = Table_T(row);
         for (size_t i = 0; i < function_num; i ++) {
             for (size_t j = 0; j < feature_size; j ++) {
                 a[i][j] = gaussrand();
@@ -178,13 +160,11 @@ struct LSH_Table
     LSH_Table (LSH_Table &&t) {
         std::swap(a, t.a);
         std::swap(b, t.b);
-        std::swap(hashs, t.hashs);
         std::swap(feature_size, t.feature_size);
         std::swap(function_num, t.function_num);
         std::swap(W, t.W);
         std::swap(table, t.table);
         t.a.data = t.b.data = nullptr;
-        t.hashs.data = nullptr;
     }
 
     void getKey(const Vector<ElementType> &v, hash_element_type *result) const {
@@ -199,19 +179,26 @@ struct LSH_Table
             x[i] -= result[i];
         }
     }
+    size_t getBasicKey(const hash_element_type *hash) const {
+        size_t result = 0;
+        for (size_t i = 0; i < function_num; i++) {
+            result = result * 131 + *reinterpret_cast<const uint32_t*>(hash + i);
+        }
+        return result;
+    }
     void add(const Matrix<ElementType> &data) {
+        Vector<hash_element_type> hash(function_num);
         for (size_t i = 0; i < data.row; i++) {
-            Vector<hash_element_type> hash(function_num, const_cast<hash_type>(hashs[i]));
             Vector<ElementType> v(feature_size, const_cast<ElementType*>(data[i]));
             getKey(v, hash.data);
-            table.insert(std::make_pair(hash.data, i));
+            table.insert(std::make_pair(getBasicKey(hash.data), i));
         }
+        delete[] hash.data;
     }
 
     ~LSH_Table() {
         delete[] a.data;
         delete[] b.data;
-        delete[] hashs.data;
     }
 };
 
@@ -236,7 +223,7 @@ public:
             tables[i].add(data);
             #pragma omp atomic
             initialized++;
-            printf("\r %4d /%4d table initialized", initialized, params.table_num);
+            printf("\r %4zu /%4zu table initialized", initialized, params.table_num);
             fflush(stdout);
         }
         printf("\n");
@@ -301,12 +288,12 @@ public:
 
     void knnSearch(Matrix<ElementType> &queries, Matrix<int> &indices, Matrix<float> &dists, int nn, const LshIndexParams &params) {
         size_t done = 0;
-        #pragma omp parallel for schedule(dynamic)
+        // #pragma omp parallel for schedule(dynamic)
         for (size_t i = 0; i < queries.row; i++) {
             findNeighbors(queries[i], indices[i], dists[i], nn);
             #pragma omp atomic
             done++;
-            printf("\r %4d / %4d", done, queries.row);
+            printf("\r %4zu / %4zu", done, queries.row);
             fflush(stdout);
         }
         printf("\n");
@@ -342,7 +329,7 @@ public:
                     std::pair<int, int> pert = pertubations[*pid].second;
                     phash[pert.first] += pert.second;
                 }
-                auto range = tables[t].table.equal_range(phash.data);
+                auto range = tables[t].table.equal_range(tables[t].getBasicKey(phash.data));
 
                 for (auto it = range.first; it != range.second; it ++) {
                     if (in.count(it->second)) {

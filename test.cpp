@@ -65,7 +65,7 @@ int main(int argc, char **argv)
 
 
         //build Index
-        if (parser.get<int>("kdtree") < 0) {
+        if (parser.get<int>("kdtree") < 0) { //brute-force
             flann::Index<flann::L2<float> > index(flann_base, flann::LinearIndexParams()); 
             printf("Building index.\n");
             index.buildIndex();
@@ -75,6 +75,9 @@ int main(int argc, char **argv)
             //Search
             printf("Searching.\n");
             index.knnSearch(flann_query, flann_indices, flann_dists, nn, flann::SearchParams(parser.get<int>("checks")));
+            finish_time = system_clock::now();
+            printf("Finsih Searching: %.4lf s\n", duration_cast<milliseconds>(finish_time - build_index_finish_time).count()/ 1000.0);
+
 
         } else {
             flann::Index<flann::L2<float> > index(flann_base, flann::KDTreeIndexParams(parser.get<int>("kdtree"))); 
@@ -86,11 +89,11 @@ int main(int argc, char **argv)
             //Search
             printf("Searching.\n");
             index.knnSearch(flann_query, flann_indices, flann_dists, nn, flann::SearchParams(parser.get<int>("checks")));
-        }
-    }
-    else if (parser.get<int>("kdtree") == -1) {
+            finish_time = system_clock::now();
+            printf("Finsih Searching: %.4lf s\n", duration_cast<milliseconds>(finish_time - build_index_finish_time).count()/ 1000.0);
 
-    }   
+        }
+    }  
     else {
         //LshIndexParams
         //size_t table_num, size_t function_num, float W, size_t probe_num
@@ -106,11 +109,9 @@ int main(int argc, char **argv)
         printf("Finsih indexing: %.4lf s\n", duration_cast<milliseconds>(build_index_finish_time - strat_time).count()/ 1000.0);
 
         index.knnSearch(query, indices, dists, nn, index_params);
-    }
-    finish_time = system_clock::now();
+        finish_time = system_clock::now();
         printf("Finsih Searching: %.4lf s\n", duration_cast<milliseconds>(finish_time - build_index_finish_time).count()/ 1000.0);
-    
-
+    }    
     double recall = 0;
     for (size_t i = 0; i < query.row; i++) {
         lsh_impl::Vector<float> q(query.col, query[i]);

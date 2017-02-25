@@ -65,15 +65,31 @@ int main(int argc, char **argv)
 
 
         //build Index
-        flann::Index<flann::L2<float> > index(flann_base, flann::KDTreeIndexParams(parser.get<int>("kdtree"))); 
-        printf("Building index.\n");
-        index.buildIndex();
-        build_index_finish_time = system_clock::now();
-        printf("Finsih indexing: %.4lf s\n", duration_cast<milliseconds>(build_index_finish_time - strat_time).count()/ 1000.0);
+        if (parser.get<int>("kdtree") < 0) {
+            flann::Index<flann::L2<float> > index(flann_base, flann::LinearIndexParams()); 
+            printf("Building index.\n");
+            index.buildIndex();
+            build_index_finish_time = system_clock::now();
+            printf("Finsih indexing: %.4lf s\n", duration_cast<milliseconds>(build_index_finish_time - strat_time).count()/ 1000.0);
 
-        //Search
-        printf("Searching.\n");
-        index.knnSearch(flann_query, flann_indices, flann_dists, nn, flann::SearchParams(parser.get<int>("checks")));
+            //Search
+            printf("Searching.\n");
+            index.knnSearch(flann_query, flann_indices, flann_dists, nn, flann::SearchParams(parser.get<int>("checks")));
+
+        } else {
+            flann::Index<flann::L2<float> > index(flann_base, flann::KDTreeIndexParams(parser.get<int>("kdtree"))); 
+            printf("Building index.\n");
+            index.buildIndex();
+            build_index_finish_time = system_clock::now();
+            printf("Finsih indexing: %.4lf s\n", duration_cast<milliseconds>(build_index_finish_time - strat_time).count()/ 1000.0);
+
+            //Search
+            printf("Searching.\n");
+            index.knnSearch(flann_query, flann_indices, flann_dists, nn, flann::SearchParams(parser.get<int>("checks")));
+        }
+    }
+    else if (parser.get<int>("kdtree") == -1) {
+
     }   
     else {
         //LshIndexParams

@@ -139,8 +139,8 @@ template<typename ElementType>
 struct LSH_Table
 {
     typedef hash_element_type* hash_type; //
-    typedef std::unordered_multimap <hash_type, // Key
-            size_t, // Value
+    typedef std::unordered_map <hash_type, // Key
+            std::vector<uint32_t>, // Value
             std::function<size_t(hash_type)>, // hasher
             std::function<bool(hash_type, hash_type)> //key_equal
             > Table_T;
@@ -159,12 +159,12 @@ struct LSH_Table
         [function_num](hash_type hash)-> size_t { // Hasher
             size_t result = 0;
             for (size_t i = 0; i < function_num; i++) {
-                result = result * 47 + *reinterpret_cast<uint32_t*>(hash + i);
+                result = result * 131 + *reinterpret_cast<uint32_t*>(hash + i);
             }
             return result;
         },
         [function_num](hash_type u, hash_type v)-> bool {
-            return memcmp(u, v, sizeof(hash_type) * function_num) == 0;
+            return memcmp(u, v, sizeof(hash_element_type) * function_num) == 0;
         }
                 );
         for (size_t i = 0; i < function_num; i ++) {
@@ -204,7 +204,12 @@ struct LSH_Table
             Vector<hash_element_type> hash(function_num, const_cast<hash_type>(hashs[i]));
             Vector<ElementType> v(feature_size, const_cast<ElementType*>(data[i]));
             getKey(v, hash.data);
-            table.insert(std::make_pair(hash.data, i));
+            auto bucket = table.find(hash.data);
+            if (bucket == table.end()) {
+                table.insert(std::make_pair(hash.data, std::vector<uint32_t>(1, i)));
+            } else {
+                bucket->second.push_back(i);
+            }
         }
     }
 
@@ -301,7 +306,7 @@ public:
 
     void knnSearch(Matrix<ElementType> &queries, Matrix<int> &indices, Matrix<float> &dists, int nn, const LshIndexParams &params) {
         size_t done = 0;
-        #pragma omp parallel for schedule(dynamic)
+        // #pragma omp parallel for schedule(dynamic)
         for (size_t i = 0; i < queries.row; i++) {
             findNeighbors(queries[i], indices[i], dists[i], nn);
             #pragma omp atomic
@@ -342,18 +347,21 @@ public:
                     std::pair<int, int> pert = pertubations[*pid].second;
                     phash[pert.first] += pert.second;
                 }
-                auto range = tables[t].table.equal_range(phash.data);
+                auto bucket = tables[t].table.find(phash.data);
+                if (bucket == tables[t].table.end()) {
+                    continue;
+                }
 
-                for (auto it = range.first; it != range.second; it ++) {
-                    if (in.count(it->second)) {
+                for (auto it = bucket->second.begin(); it != bucket->second.end(); it ++) {
+                    if (in.count(*it)) {
                         continue;
                     }
-                    float dist = q.square_dist(data[it->second]);
+                    float dist = q.square_dist(data[*it]);
                     if (result.size() == nn && dist > result.top().first) { // enough && worse than the worst
                         continue;
                     }
-                    in.insert(it->second);
-                    result.push(std::make_pair(dist, it->second));
+                    in.insert(*it);
+                    result.push(std::make_pair(dist, *it));
                     if (result.size() > nn) {
                         result.pop();
                     }
